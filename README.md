@@ -1,88 +1,125 @@
-# RAG Demo
+# PDF RAG Reader
 
-A minimal Retrieval-Augmented Generation demo running fully locally. Uses **Qwen 2.5** for generation and HuggingFace sentence-transformers for embeddings — no external API keys required.
+A local Retrieval-Augmented Generation (RAG) demo that lets you query PDF documents using a fully offline stack — no cloud APIs required.
 
-## Features
+Built with LangChain, ChromaDB, HuggingFace sentence transformers, and Ollama.
 
-- 100% local inference (no OpenAI, no Anthropic, no cloud)
-- Qwen 2.5 as the generator model
-- HuggingFace embeddings for semantic search
-- Local vector store (FAISS / Chroma)
-- Simple CLI for indexing documents and asking questions
-- Works on CPU; GPU recommended for reasonable speed
+---
+
+## Demo
+
+The included sample uses the *Ant-Man* press kit PDF.  
+Example query:
+```
+Extract all 3D Stereoscopic people, separate them by comma
+```
+
+---
+
+## How it works
+
+```
+PDFs  →  text chunks  →  HuggingFace embeddings  →  ChromaDB vector store
+                                                              ↓
+              query  →  retriever  →  Ollama (local LLM)  →  answer
+```
+
+1. **Ingest** — PDFs are loaded, split into overlapping chunks, embedded with a sentence transformer, and persisted in a local Chroma vector store.
+2. **Query** — At query time the pipeline retrieves the top-k most relevant chunks and passes them as context to a local Ollama LLM, which returns a grounded answer.
+
+---
 
 ## Requirements
 
 - Python 3.10+
-- ~8 GB free disk space for model weights
-- CUDA-capable GPU recommended (CPU works but is slow)
+- [Ollama](https://ollama.com/) installed and running locally
+- A GPU is recommended (CUDA); CPU works but is slower
+
+### Pull the default LLM
+
+```bash
+ollama pull qwen:14b
+```
+
+---
 
 ## Installation
 
 ```bash
-git clone <repo-url>
-cd <repo-folder>
-
-python -m venv .venv
-source .venv/bin/activate  # Windows: .venv\Scripts\activate
-
+git clone https://github.com/<your-username>/pdfReader.git
+cd pdfReader
 pip install -r requirements.txt
 ```
 
-Model weights are downloaded automatically from HuggingFace on first run.
+---
 
 ## Usage
 
-**1. Index your documents**
-
-Drop your `.txt` / `.md` / `.pdf` files into the `docs/` folder, then build the index:
+### 1. Run the reader
 
 ```bash
-python ingest.py --source docs/
+python PDF_reader.py
 ```
 
-**2. Ask questions**
+You will be prompted for the path to a directory of PDF files.  
+Press **Enter** to use the bundled sample in `press_kit/`.
 
-```bash
-python query.py "What is the main argument of the paper?"
-```
-
-Example output:
+### 2. Ask questions
 
 ```
-> What is the main argument of the paper?
-
-Answer: The paper argues that ...
-Sources:
-  - docs/paper.pdf (p. 3)
-  - docs/notes.md
+What are you looking for?
+> Extract all 3D Stereoscopic people, separate them by comma
 ```
 
-## Project Structure
+Type `exit` to quit.
 
-```
-.
-├── ingest.py          # Loads, chunks, and embeds documents
-├── query.py           # CLI for asking questions
-├── rag/
-│   ├── embedder.py    # HuggingFace embedding wrapper
-│   ├── store.py       # Vector store interface
-│   └── llm.py         # Qwen 2.5 wrapper
-├── docs/              # Your source documents
-└── requirements.txt
-```
+---
 
 ## Configuration
 
-Edit `config.yaml` to change models, chunk size, or top-k retrieval:
+All parameters live in [`config.yml`](config.yml):
 
-```yaml
-llm_model: Qwen/Qwen2.5-7B-Instruct
-embedding_model: sentence-transformers/all-MiniLM-L6-v2
-chunk_size: 512
-top_k: 4
+| Key | Default | Description |
+|-----|---------|-------------|
+| `CHUNK_SIZE` | `100` | Token chunk size for text splitting |
+| `CHUNK_OVERLAP` | `10` | Overlap between consecutive chunks |
+| `NUM_RESULTS` | `5` | Top-k chunks retrieved per query |
+| `EMBEDDINGS` | `sentence-transformers/all-mpnet-base-v2` | HuggingFace embedding model |
+| `VECTOR_DB` | `vectorstore/sparrow` | Path to Chroma persist directory |
+| `DEVICE` | `cuda` | `cuda` or `cpu` |
+| `LLM` | `qwen:14b` | Ollama model name |
+| `VECTOR_SPACE` | `cosine` | Chroma distance metric |
+
+---
+
+## Project structure
+
 ```
+pdfReader/
+├── PDF_reader.py       # Entry point — ingest + interactive query loop
+├── ingest.py           # PDF loading, chunking, embedding, vector store creation
+├── rag/
+│   └── pipeline.py     # RAG pipeline: embeddings, retriever, prompt, QA chain
+├── config.yml          # All tunable parameters
+├── requirements.txt
+├── press_kit/          # Sample PDFs (Ant-Man press kit)
+├── data/               # Drop your own PDFs here
+└── vectorstore/        # Auto-generated Chroma DB (git-ignored)
+```
+
+---
+
+## Stack
+
+| Component | Library |
+|-----------|---------|
+| Document loading & pipeline | [LangChain](https://github.com/langchain-ai/langchain) |
+| Embeddings | [sentence-transformers/all-mpnet-base-v2](https://huggingface.co/sentence-transformers/all-mpnet-base-v2) |
+| Vector store | [ChromaDB](https://www.trychroma.com/) |
+| Local LLM | [Ollama](https://ollama.com/) (`qwen:14b` / `zephyr:7b-alpha-q5_K_M`) |
+
+---
 
 ## License
 
-MIT
+[MIT](LICENSE)
